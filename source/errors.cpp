@@ -7,9 +7,12 @@
 #include "../imgui/imgui_impl_dx9.h"
 #include "../imgui/imgui_impl_win32.h"
 
+// List of available functions
+const std::vector<std::string> functions = { "SIN", "COS", "TAN", "SQRT" };
+
 std::vector<std::string> prsr::checkExpression(char* expr) {
     int parenthesesCount = 0; // Counter for open parentheses
-    bool lastWasOperator = true; // Start as true to allow a variable first
+    bool lastWasOperator = false; // Start as true to allow a variable first
     bool lastWasDecimal = false; // Track if the last number had a decimal point
     bool inNumber = false; // Track if we're inside a number
     bool lastWasOpeningParenthesis = false; // Track if the last character was an opening parenthesis
@@ -27,6 +30,50 @@ std::vector<std::string> prsr::checkExpression(char* expr) {
             prsr::errors.push_back("Position " + std::to_string(i) + ": invalid character '" + std::string(1, current) + "'");
             continue;
         }
+
+        // Check for functions
+        if (std::isalpha(current)) {
+            std::string funcName;
+            int j = i;
+            // Collect letters to form potential function name
+            while (j < len && std::isalpha(expr[j])) {
+                funcName += expr[j];
+                ++j;
+            }
+
+            // Check if collected name is a valid function
+            if (std::find(functions.begin(), functions.end(), funcName) != functions.end()) {
+                i = j - 1; // Move index to end of function name
+                if (j >= len || expr[j] != '(') {
+                    prsr::errors.push_back("Position " + std::to_string(i) + ": function '" + funcName + "' missing opening parenthesis");
+                }
+                else {
+                    lastWasOperator = true; // Functions act as operators
+                }
+                continue;
+            }
+
+            // Check for variable errors
+            if (funcName.size() > 1 || std::isdigit(expr[j])) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": invalid variable name '" + funcName + "'. Variables must be a single letter without numbers.");
+                i = j - 1; // Skip remaining letters
+                continue;
+            }
+        }
+
+        // Detect single - letter variable
+        if (std::isalpha(current)) {
+            inNumber = false;
+            lastWasOperator = false;
+            lastWasDecimal = false;
+            lastWasOpeningParenthesis = false;
+
+            if (i > 0 && std::isdigit(expr[i - 1])) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": variable cannot start with a number");
+            }
+            continue;
+        }
+    
 
         // Check for operator errors
         if (current == '+' || current == '-' || current == '*' || current == '/') {
@@ -89,19 +136,9 @@ std::vector<std::string> prsr::checkExpression(char* expr) {
             inNumber = true;
             lastWasOperator = false;
             lastWasOpeningParenthesis = false;
-            lastWasNegativeSign = false; // Reset negative sign status after a number
             continue;
         }
 
-        // If the character is a letter (variable)
-        if (std::isalpha(current)) {
-            inNumber = false;
-            lastWasOperator = false;
-            lastWasDecimal = false;
-            lastWasOpeningParenthesis = false;
-            lastWasNegativeSign = false; // Reset negative sign status after a variable
-            continue;
-        }
 
         // Check for parentheses errors
         if (current == '(') {
