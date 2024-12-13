@@ -595,15 +595,15 @@ IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hwnd, UINT msg, WPARA
         ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
         const int area = (msg == WM_MOUSEMOVE) ? 1 : 2;
         bd->MouseHwnd = hwnd;
-        if (bd->MouseTrackedArea != area)
-        {
-            TRACKMOUSEEVENT tme_cancel = { sizeof(tme_cancel), TME_CANCEL, hwnd, 0 };
-            TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
-            if (bd->MouseTrackedArea != 0)
-                ::TrackMouseEvent(&tme_cancel);
-            ::TrackMouseEvent(&tme_track);
-            bd->MouseTrackedArea = area;
-        }
+            if (bd && bd->MouseTrackedArea != area)
+            {
+                TRACKMOUSEEVENT tme_cancel = { sizeof(tme_cancel), TME_CANCEL, hwnd, 0 };
+                TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
+                if (bd->MouseTrackedArea != 0)
+                    ::TrackMouseEvent(&tme_cancel);
+                ::TrackMouseEvent(&tme_track);
+                bd->MouseTrackedArea = area;
+            }
         POINT mouse_pos = { (LONG)GET_X_LPARAM(lParam), (LONG)GET_Y_LPARAM(lParam) };
         if (msg == WM_NCMOUSEMOVE && ::ScreenToClient(hwnd, &mouse_pos) == FALSE) // WM_NCMOUSEMOVE are provided in absolute coordinates.
             break;

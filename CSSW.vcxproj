@@ -155,6 +155,8 @@
     <ClCompile Include="source\errors.cpp" />
     <ClCompile Include="source\gui.cpp" />
     <ClCompile Include="source\main.cpp" />
+    <ClCompile Include="source\tree.cpp" />
+    <ClCompile Include="source\treeDrawing.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

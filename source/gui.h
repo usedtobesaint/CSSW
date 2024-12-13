@@ -1,17 +1,20 @@
 #pragma once
 #include <d3d9.h>
+#include "../imgui/imgui.h"
 
 
 namespace gui
 {
 	//window size
-	constexpr int WIDTH = 800;
-	constexpr int HEIGHT = 500;
+	inline int WIDTH = 800;
+	inline int HEIGHT = 500;
 
 	inline bool isRunning = true;
 
+	inline ImGuiContext* parserContext = nullptr;
+
 	//winapi window vars
-	inline HWND window = nullptr;
+	inline HWND parserWindow = nullptr;
 	inline WNDCLASSEX windowClass = {};
 
 	//point for window movement
@@ -19,26 +22,23 @@ namespace gui
 
 	//directx state vars
 	inline PDIRECT3D9 d3d = nullptr;
-	inline LPDIRECT3DDEVICE9 device = nullptr;
+	inline LPDIRECT3DDEVICE9 parserDevice = nullptr;
 	inline D3DPRESENT_PARAMETERS presentParameters = { };
 
 	//handle window creation & destruction
-	void CreateHWindow(
-		const char* windowName,
-		const char* className) noexcept;
-	void DestroyHWindow() noexcept;
+	void CreateHWindow(const char* windowName, HWND& window) noexcept;
+	void DestroyHWindow(HWND& window) noexcept;
 
 	// handle device creation & destruction
-	bool CreateDevice() noexcept;
-	void ResetDevice() noexcept;
-	void DestroyDevice() noexcept;
+	bool CreateDevice(HWND& window, LPDIRECT3DDEVICE9& device) noexcept;
+	bool ResetDevice(LPDIRECT3DDEVICE9 device) noexcept;
+	void DestroyDevice(LPDIRECT3DDEVICE9& device) noexcept;
 
 	// handle InGui creation & destruction
-	void CreateImGui() noexcept;
-	void DestroyImGui() noexcept;
-	void BeginRender() noexcept;
-	void EndRender() noexcept;
+	void CreateImGui(HWND& window, LPDIRECT3DDEVICE9& device, ImGuiContext*& context) noexcept;
+	void DestroyImGui(ImGuiContext*& context) noexcept;
+	void BeginRender(ImGuiContext*& context) noexcept;
+	void EndRender(LPDIRECT3DDEVICE9& device, ImGuiContext*& context) noexcept;
 	void Render() noexcept;
 
-	LPCWSTR convertToLPCWSTR(const char* str);
 }

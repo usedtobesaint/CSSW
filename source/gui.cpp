@@ -14,7 +14,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(
 	LPARAM longParameter
 );
 
-LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, LPARAM longParameter)
+LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, LPARAM longParameter, LPDIRECT3DDEVICE9 device)
 {
 	if (ImGui_ImplWin32_WndProcHandler(window, message, wideParameter, longParameter))
 		return true;
@@ -22,11 +22,11 @@ LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, 
 	switch (message)
 	{
 	case WM_SIZE: {
-		if (gui::device && wideParameter != SIZE_MINIMIZED)
+		if (device && wideParameter != SIZE_MINIMIZED)
 		{
 			gui::presentParameters.BackBufferWidth = LOWORD(longParameter);
 			gui::presentParameters.BackBufferHeight = HIWORD(longParameter);
-			gui::ResetDevice();
+			gui::ResetDevice(device);
 		}
 	}return 0;
 
@@ -49,7 +49,7 @@ LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, 
 			const auto points = MAKEPOINTS(longParameter);
 			auto rect = ::RECT{ };
 
-			GetWindowRect(gui::window, &rect);
+			GetWindowRect(window, &rect);
 
 			rect.left += points.x - gui::position.x;
 			rect.top += points.y - gui::position.y;
@@ -58,7 +58,7 @@ LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, 
 				gui::position.x <= gui::WIDTH &&
 				gui::position.y >= 0 && gui::position.y <= 19)
 				SetWindowPos(
-					gui::window,
+					window,
 					HWND_TOPMOST,
 					rect.left,
 					rect.top,
@@ -74,8 +74,7 @@ LRESULT CALLBACK WindowProcess(HWND window, UINT message, WPARAM wideParameter, 
 	return DefWindowProc(window, message, wideParameter, longParameter);
 }
 
-void gui::CreateHWindow(const char* windowName,
-	const char* className) noexcept
+void gui::CreateHWindow(const char* windowName, HWND& window) noexcept
 {
 	windowClass.cbSize = sizeof(WNDCLASSEX);
 	windowClass.style = CS_CLASSDC;
@@ -87,14 +86,14 @@ void gui::CreateHWindow(const char* windowName,
 	windowClass.hCursor = 0;
 	windowClass.hbrBackground = 0;
 	windowClass.lpszMenuName = 0;
-	windowClass.lpszClassName = "class001";
+	windowClass.lpszClassName = "CSSW";
 	windowClass.hIconSm = 0;
 
 	RegisterClassEx(&windowClass);
 
 	window = CreateWindowEx(
 		0,
-		"class001",
+		"CSSW",
 		windowName,
 		WS_POPUP,
 		100,
@@ -107,59 +106,80 @@ void gui::CreateHWindow(const char* windowName,
 		0
 	);
 
+	if (window == NULL) {
+		std::cerr << "Failed to create window. Error: " << GetLastError() << std::endl;
+	}
 	ShowWindow(window, SW_SHOWDEFAULT);
 	UpdateWindow(window);
 }
 
-void gui::DestroyHWindow() noexcept
+void gui::DestroyHWindow(HWND& window) noexcept
 {
 	DestroyWindow(window);
 	UnregisterClass(windowClass.lpszClassName, windowClass.hInstance);
 }
 
-bool gui::CreateDevice() noexcept
-{
-	d3d = Direct3DCreate9(D3D_SDK_VERSION);
+bool gui::CreateDevice(HWND& window, LPDIRECT3DDEVICE9& device) noexcept {
+	if (!d3d) d3d = Direct3DCreate9(D3D_SDK_VERSION);
+	if (!d3d) return false;
 
-	if (!d3d)
-		return false;
-
+	// Initialize present parameters
 	ZeroMemory(&presentParameters, sizeof(presentParameters));
-
 	presentParameters.Windowed = TRUE;
 	presentParameters.SwapEffect = D3DSWAPEFFECT_DISCARD;
-	presentParameters.BackBufferFormat = D3DFMT_UNKNOWN;
-	presentParameters.EnableAutoDepthStencil = TRUE;
-	presentParameters.AutoDepthStencilFormat = D3DFMT_D16;
-	presentParameters.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
+	presentParameters.BackBufferFormat = D3DFMT_UNKNOWN; // Use appropriate format
+	presentParameters.BackBufferWidth = WIDTH; // Set to actual width
+	presentParameters.BackBufferHeight = HEIGHT; // Set to actual height
 
-	if (d3d->CreateDevice(
-		D3DADAPTER_DEFAULT,
-		D3DDEVTYPE_HAL,
-		window,
-		D3DCREATE_HARDWARE_VERTEXPROCESSING,
-		&presentParameters,
-		&device) < 0)
+	HRESULT hr = d3d->CreateDevice(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, window,
+		D3DCREATE_HARDWARE_VERTEXPROCESSING, &presentParameters, &device);
+
+	if (FAILED(hr)) {
+		std::cerr << "Failed to create Direct3D device. HRESULT: " << hr << std::endl;
+		if (device) device->Release();
 		return false;
-
+	}
 	return true;
 }
 
-void gui::ResetDevice() noexcept
-{
+
+
+bool gui::ResetDevice(LPDIRECT3DDEVICE9 device) noexcept {
+	if (!device) return false;
+
 	ImGui_ImplDX9_InvalidateDeviceObjects();
+	HRESULT result;
 
-	const auto result = device->Reset(&presentParameters);
+	if (device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
+		result = device->Reset(&presentParameters);
+		if (FAILED(result)) {
+			std::cerr << "Failed to reset device. HRESULT: " << result << std::endl;
+			return false;
+		}
+	}
 
-	if (result == D3DERR_INVALIDCALL)
-		IM_ASSERT(0);
+	if (result == D3DERR_INVALIDCALL) {
+		std::cerr << "Invalid call to device reset." << std::endl;
+		return false;
+	}
+	else if (result == D3DERR_DEVICENOTRESET) {
+		std::cerr << "Device not reset. Need to handle accordingly." << std::endl;
+		return false;
+	}
+	else if (FAILED(result)) {
+		std::cerr << "Failed to reset device. HRESULT: " << result << std::endl;
+		return false;
+	}
 
 	ImGui_ImplDX9_CreateDeviceObjects();
+	return true;
 }
 
-void gui::DestroyDevice() noexcept
+
+
+void gui::DestroyDevice(LPDIRECT3DDEVICE9& device) noexcept
 {
-	if (device)
+	if (&device)
 	{
 		device->Release();
 		device = nullptr;
@@ -172,10 +192,10 @@ void gui::DestroyDevice() noexcept
 	}
 }
 
-void gui::CreateImGui() noexcept
+void gui::CreateImGui(HWND& window, LPDIRECT3DDEVICE9& device, ImGuiContext*& context) noexcept
 {
 	IMGUI_CHECKVERSION();
-	ImGui::CreateContext();
+	context = ImGui::CreateContext();
 	ImGuiIO& io = ::ImGui::GetIO();
 
 	io.IniFilename = NULL;
@@ -186,15 +206,16 @@ void gui::CreateImGui() noexcept
 	ImGui_ImplDX9_Init(device);
 }
 
-void gui::DestroyImGui() noexcept
+void gui::DestroyImGui(ImGuiContext*& context) noexcept
 {
 	ImGui_ImplDX9_Shutdown();
 	ImGui_ImplWin32_Shutdown();
-	ImGui::DestroyContext();
+	ImGui::DestroyContext(context);
 }
 
-void gui::BeginRender() noexcept
+void gui::BeginRender(ImGuiContext*& context) noexcept
 {
+	ImGui::SetCurrentContext(context);
 	MSG message;
 	while (PeekMessage(&message, 0, 0, 0, PM_REMOVE))
 	{
@@ -214,8 +235,10 @@ void gui::BeginRender() noexcept
 	ImGui::NewFrame();
 }
 
-void gui::EndRender() noexcept
+void gui::EndRender(LPDIRECT3DDEVICE9& device,ImGuiContext*& context) noexcept
 {
+	ImGui::SetCurrentContext(context);
+
 	ImGui::EndFrame();
 
 	device->SetRenderState(D3DRS_ZENABLE, FALSE);
@@ -235,7 +258,5 @@ void gui::EndRender() noexcept
 
 	// Handle loss of D3D9 device
 	if (result == D3DERR_DEVICELOST && device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET)
-		ResetDevice();
+		ResetDevice(device);
 }
-
-
