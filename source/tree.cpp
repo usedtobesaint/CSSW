@@ -1,73 +1,89 @@
-#include "parser.h"
+#include "tree.h"
 #include <stack>
-#include <string>
+#include <sstream>
+#include <queue>
 #include <iostream>
-#include "../imgui/imgui.h"
+#include <regex>
 
+using namespace tree;
+tree::Node::Node(std::string val) : value(val) {}
 
-using namespace prsr;
+std::vector<std::string> tree::tokenizeExpression(std::string expr) {
+    std::vector<std::string> tokens;
+    std::regex tokenRegex(R"(([a-zA-Z]+\()|([a-zA-Z_][a-zA-Z0-9_]*)|([0-9]+(?:\.[0-9]+)?)|([+\-*/()]))");
+    std::sregex_iterator it(expr.begin(), expr.end(), tokenRegex);
+    std::sregex_iterator end;
 
-Node* createNode(const std::string& value) {
-    return new Node{ value, {} };
+    while (it != end) {
+        tokens.push_back(it->str());
+        ++it;
+    }
+    return tokens;
 }
 
-// A simple parser to create a tree from the expression
-prsr::Node* prsr::parseExpression(const std::string& expr) {
-    Node* root = nullptr;
-    Node* currentOperatorNode = nullptr;
+Node* tree::buildParallelTree(const std::vector<std::string>& tokens) {
+    std::stack<tree::Node*> nodeStack;
 
-    for (char ch : expr) {
-        if (ch == '+' || ch == '-' || ch == '*' || ch == '/') {
-            // Create a new operator node
-            Node* operatorNode = createNode(std::string(1, ch));
-
-            if (!root) {
-                // If root is null, set this operator as root
-                operatorNode->children.push_back(currentOperatorNode);
-                root = operatorNode;
-            }
-            else {
-                // Attach the current tree to the left of the new operator
-                operatorNode->children.push_back(root);
-                root = operatorNode;
-            }
-            currentOperatorNode = operatorNode;
+    for (const auto& token : tokens) {
+        if (token == "+" || token == "-" || token == "*" || token == "/") {
+            Node* right = nodeStack.top(); nodeStack.pop();
+            Node* left = nodeStack.top(); nodeStack.pop();
+            Node* opNode = new Node(token);
+            opNode->children.push_back(left);
+            opNode->children.push_back(right);
+            nodeStack.push(opNode);
         }
         else {
-            // Create operand node
-            Node* operandNode = createNode(std::string(1, ch));
-
-            if (!root) {
-                root = operandNode;
-            }
-            else if (currentOperatorNode) {
-                // Attach operand to the operator's right
-                currentOperatorNode->children.push_back(operandNode);
-                currentOperatorNode = nullptr; // Reset to allow a new operator to take precedence
-            }
+            nodeStack.push(new Node(token));
         }
     }
+
+    return nodeStack.top(); // Root of the tree
+}
+
+Node* tree::optimizeParallelTree(Node* root) {
+    if (!root) return nullptr;
+
+    // Base case: If it's a leaf node, return it
+    if (root->children.empty()) return root;
+
+    // Apply parallel optimization for associativity if possible
+    if (root->value == "+" || root->value == "*") {
+        std::queue<Node*> nodes;
+        for (auto child : root->children) {
+            if (child->value == root->value) {
+                for (auto grandChild : child->children) {
+                    nodes.push(grandChild);
+                }
+                delete child;
+            }
+            else {
+                nodes.push(child);
+            }
+        }
+
+        root->children.clear();
+        while (!nodes.empty()) {
+            root->children.push_back(nodes.front());
+            nodes.pop();
+        }
+    }
+
     return root;
 }
 
+void tree::printTree(Node* root, int depth) {
+    if (!root) return;
 
+    for (int i = 0; i < depth; ++i) std::cout << "  ";
+    std::cout << root->value << std::endl;
 
-// Function to draw the node in ImGui
-void prsr::drawNode(Node* node) {
-    if (node == nullptr) return;
-
-    // Draw the node value
-    ImGui::Text("%s", node->value.c_str());
-    std::cout << "Node: " << node->value << std::endl; // Debug output
-
-    // If there are children, draw them
-    if (!node->children.empty()) {
-        ImGui::Indent(); // Indent for child nodes
-        for (Node* child : node->children) {
-            std::cout << "Child of " << node->value << ": " << child->value << std::endl; // Debug output
-            drawNode(child); // Recursively draw each child
-        }
-        ImGui::Unindent(); // Unindent after drawing children
-    }
 }
 
+
+void tree::printTokens(const std::vector<std::string>& tokens) {
+	for (const auto& token : tokens) {
+		std::cout << token << " ";
+	}
+	std::cout << std::endl;
+}

@@ -143,6 +143,7 @@
     <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="source\gui.h" />
     <ClInclude Include="source\parser.h" />
+    <ClInclude Include="source\tree.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imgui\imgui.cpp" />
@@ -152,6 +153,7 @@
     <ClCompile Include="imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="source\optimizing.cpp" />
     <ClCompile Include="source\errors.cpp" />
     <ClCompile Include="source\gui.cpp" />
     <ClCompile Include="source\main.cpp" />

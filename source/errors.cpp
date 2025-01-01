@@ -2,6 +2,7 @@
 #include <regex>
 #include <string>
 #include <vector>
+#include <stack>
 #include <iostream>
 #include <cctype>
 #include "../imgui/imgui.h"
@@ -56,13 +57,6 @@ std::vector<std::string> prsr::checkExpression(const char* expr) {
                 else {
                     lastWasOperator = false;
                 }
-                continue;
-            }
-
-            // Check for variable errors
-            if (funcName.size() > 1 || std::isdigit(expr[j])) {
-                prsr::errors.push_back("Position " + std::to_string(i) + ": invalid variable name '" + funcName + "'. Variables must be a single letter without numbers.");
-                i = j - 1; // Skip remaining letters
                 continue;
             }
         }
