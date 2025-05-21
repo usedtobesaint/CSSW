@@ -107,6 +107,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -143,7 +144,6 @@
     <ClInclude Include="imgui\imstb_truetype.h" />
     <ClInclude Include="source\gui.h" />
     <ClInclude Include="source\parser.h" />
-    <ClInclude Include="source\tree.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="imgui\imgui.cpp" />
@@ -153,12 +153,11 @@
     <ClCompile Include="imgui\imgui_impl_win32.cpp" />
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
+    <ClCompile Include="source\globals.cpp" />
     <ClCompile Include="source\optimizing.cpp" />
     <ClCompile Include="source\errors.cpp" />
     <ClCompile Include="source\gui.cpp" />
     <ClCompile Include="source\main.cpp" />
-    <ClCompile Include="source\tree.cpp" />
-    <ClCompile Include="source\treeDrawing.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
