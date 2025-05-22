@@ -5,6 +5,14 @@
 #include <queue>
 #include <map>
 #include <set>
+#include <functional>
+
+struct TaskAssignment {
+    int proc;
+    int startTime;
+    int endTime;
+    std::string op;
+};
 
 // 1. Перевірка валідності виразу
 bool validateExpression(const std::string& expr) {
@@ -25,8 +33,13 @@ prsr::Node* buildTaskGraph(prsr::Node* root) {
     if (!root->isOperator) return nullptr; // Лист — не операція
     prsr::Node* node = new prsr::Node(root->value, true, false, false);
     for (auto* child : root->children) {
-        prsr::Node* opChild = buildTaskGraph(child);
-        if (opChild) node->children.push_back(opChild);
+        if (child->isOperator) {
+            prsr::Node* opChild = buildTaskGraph(child);
+            if (opChild) node->children.push_back(opChild);
+        } else {
+            // Додаємо "заглушку" для листа, щоб зберегти залежність
+            node->children.push_back(nullptr);
+        }
     }
     return node;
 }
@@ -42,29 +55,63 @@ std::vector<std::vector<prsr::Node*>> groupByLevels(prsr::Node* root) {
         if (levels.size() <= lvl) levels.push_back({});
         levels[lvl].push_back(node);
         for (auto* child : node->children) {
+            if (!child) continue;
             q.push({child, lvl + 1});
         }
     }
     return levels;
 }
 
-// 5. Розподіл тасок між процесорами (лінійка)
-struct TaskAssignment {
-    int proc;
-    int startTime;
-    int endTime;
-    std::string op;
-};
-std::vector<TaskAssignment> assignTasks(const std::vector<std::vector<prsr::Node*>>& levels, int procCount) {
+// Функція для визначення тривалості операції
+int getOpDuration(const std::string& op) {
+    if (op == "+" || op == "-") return 1;
+    if (op == "*") return 2;
+    if (op == "/") return 4;
+    return 1;
+}
+
+// Повністю готова функція: планування з урахуванням залежностей (без buildTaskGraph)
+std::vector<TaskAssignment> assignTasksWithDependencies(prsr::Node* root, int procCount) {
     std::vector<TaskAssignment> assignments;
-    int time = 0;
-    for (const auto& level : levels) {
-        int p = 0;
-        for (auto* node : level) {
-            assignments.push_back({p % procCount, time, time + 1, node->value});
-            p++;
+    if (!root) return assignments;
+    std::vector<int> procAvailable(procCount, 0);
+    struct TaskInfo {
+        prsr::Node* node;
+        int start;
+        int end;
+        int proc;
+    };
+    std::vector<TaskInfo> taskInfos;
+    // DFS: для бінарних операторів (2 дитини)
+    std::function<int(prsr::Node*)> dfs = [&](prsr::Node* node) -> int {
+        if (!node) return 0;
+        if (!node->isOperator) return 0; // лист готовий одразу
+        int leftFinish = 0, rightFinish = 0;
+        if (node->children.size() > 0) leftFinish = dfs(node->children[0]);
+        if (node->children.size() > 1) rightFinish = dfs(node->children[1]);
+        int earliestStart = std::max(leftFinish, rightFinish);
+        int minProc = 0;
+        int minTime = std::max(procAvailable[0], earliestStart);
+        for (int i = 1; i < procCount; ++i) {
+            int t = std::max(procAvailable[i], earliestStart);
+            if (t < minTime) {
+                minTime = t;
+                minProc = i;
+            }
         }
-        time++;
+        int duration = getOpDuration(node->value);
+        int start = std::max(procAvailable[minProc], earliestStart);
+        int end = start + duration;
+        taskInfos.push_back({node, start, end, minProc});
+        procAvailable[minProc] = end;
+        return end;
+    };
+    dfs(root);
+    std::sort(taskInfos.begin(), taskInfos.end(), [](const TaskInfo& a, const TaskInfo& b) {
+        return a.start < b.start;
+    });
+    for (const auto& t : taskInfos) {
+        assignments.push_back({t.proc, t.start, t.end, t.node->value});
     }
     return assignments;
 }
@@ -138,27 +185,23 @@ void prsr::modelSystem(const std::string& expr, int procCount) {
         std::cout << "Error: failed to build the tree!" << std::endl;
         return;
     }
-    // 3. Граф задачі
-    prsr::Node* taskGraph = buildTaskGraph(tree);
-    if (!taskGraph) {
-        std::cout << "The expression does not contain operations for the task graph." << std::endl;
-        return;
+    // Масив кількостей процесорів для замірів
+    std::vector<int> procVariants = {1, 2, 5, 6, 8, 10};
+    for (size_t i = 0; i < procVariants.size(); ++i) {
+        int pCount = procVariants[i];
+        std::cout << "\n=== Моделювання для " << pCount << " процесорів ===" << std::endl;
+        auto assignments = assignTasksWithDependencies(tree, pCount);
+        auto levels = groupByLevels(tree);
+        int seqTime = levels.size();
+        int parTime = assignments.empty() ? 0 : assignments.back().endTime;
+        std::set<int> usedProcSet;
+        for (const auto& t : assignments) usedProcSet.insert(t.proc);
+        int usedProcs = usedProcSet.size();
+        computeMetrics(seqTime, parTime, usedProcs, pCount);
+        if (i == procVariants.size() - 1) {
+            printGanttTable(assignments, pCount);
+        }
     }
-    // 4. Групування
-    auto levels = groupByLevels(taskGraph);
-    // 5. Розподіл
-    auto assignments = assignTasks(levels, procCount);
-    // 6. Метрики
-    int seqTime = levels.size();
-    int parTime = assignments.empty() ? 0 : assignments.back().endTime;
-    std::set<int> usedProcSet;
-    for (const auto& t : assignments) usedProcSet.insert(t.proc);
-    int usedProcs = usedProcSet.size();
-    computeMetrics(seqTime, parTime, usedProcs, procCount);
-    // 7. Діаграма Ганта
-    printGanttTable(assignments, procCount);
-
     // Clean up
-    delete tree;
-    delete taskGraph;
+    if (tree) delete tree;
 }

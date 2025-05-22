@@ -135,9 +135,9 @@ Node* prsr::buildTreeFromTokens(const std::vector<Token>& tokens, size_t start, 
     int opIndex = -1;
     int parenLevel = 0;
 
-    for (int i = end; i >= (int)start; i--) {
-        if (tokens[i].value == ")") parenLevel++;
-        else if (tokens[i].value == "(") parenLevel--;
+    for (int i = (int)start; i <= (int)end; i++) {
+        if (tokens[i].value == "(") parenLevel++;
+        else if (tokens[i].value == ")") parenLevel--;
         else if (parenLevel == 0 && tokens[i].isOperator) {
             int prec = getPrecedence(tokens[i].value);
             if (prec <= minPrec) {
@@ -204,7 +204,7 @@ Node* prsr::optimizeParallelTree(Node* root) {
         root->children[i] = prsr::optimizeParallelTree(root->children[i]);
     }
     // If this is an operator node, try to create parallel structure for any operator
-    if (root->isOperator) {
+    if (root->isOperator && (root->value == "+" || root->value == "*")) {
         return createBalancedStructureForAllOps(root);
     }
     return root;

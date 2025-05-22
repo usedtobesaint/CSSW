@@ -18,6 +18,7 @@ void RenderTree(prsr::Node* node, int depth = 0) {
     if (node->isOperator) {
         if (ImGui::TreeNode(label.c_str(), "%s", node->value.c_str())) {
             for (auto child : node->children) {
+                if (!child) continue;
                 RenderTree(child, depth + 1);
             }
             ImGui::TreePop();
@@ -32,6 +33,7 @@ void PrintTree(prsr::Node* node, int depth = 0) {
     for (int i = 0; i < depth; ++i) std::cout << "  ";
     std::cout << node->value << (node->isOperator ? " (op)" : "") << std::endl;
     for (auto child : node->children) {
+        if (!child) continue;
         PrintTree(child, depth + 1);
     }
 }
@@ -49,6 +51,7 @@ void ImGuiPrintTree(prsr::Node* node, int depth = 0) {
         ImGui::Text("%s", node->value.c_str());
     }
     for (auto child : node->children) {
+        if (!child) continue;
         ImGuiPrintTree(child, depth + 1);
     }
     ImGui::Unindent(depth * 20.0f);
