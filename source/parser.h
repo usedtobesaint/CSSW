@@ -2,13 +2,14 @@
 
 #include <string>
 #include <vector>
+#include <climits>
 
 namespace prsr {
     struct Node {
         std::string value;
         bool isOperator;
-        bool isNumber;    // Add this
-        bool isVariable;  // Add this
+        bool isNumber;
+        bool isVariable;
         std::vector<Node*> children;
 
         Node(const std::string& val, bool op, bool num = false, bool var = false)
@@ -39,24 +40,31 @@ namespace prsr {
         }
     };
 
-
     extern std::vector<std::string> errors;
     extern char expression[256];
     extern std::string correctedExpression;
     extern std::string optimizedExpression;
+    extern std::string simplifiedExpression;
 
     // Helper functions
     bool isOperator(char c);
     Token createToken(const std::string& val);
     int getPrecedence(const std::string& op);
 
+    // Main parser functions
     std::vector<std::string> checkExpression(const char* expr);
     void displayErrors(const std::vector<std::string>& errors);
     std::string correctExpression(char* expr, const std::vector<std::string>& errors);
     std::string optimizeExpression(std::string& expression);
+    std::string simplifyExpression(const std::string& expr);
     Node* buildParseTree(const std::string& expr);
     Node* optimizeParallelTree(Node* root);
-    std::string treeToString(Node* root);
+
+    // Additional helper functions for tree building
+    Node* buildTreeFromTokens(const std::vector<Token>& tokens, size_t start, size_t end);
+    Node* createParallelStructure(Node* root);
+    void collectOperands(Node* node, const std::string& op, std::vector<Node*>& operands);
+    Node* buildBalancedTree(std::vector<Node*>& operands, const std::string& op);
 
     inline std::vector<Token> tokenize(const std::string& expr) {
         std::vector<Token> tokens;
@@ -69,7 +77,7 @@ namespace prsr {
 
             if (c == '(' || c == ')') {
                 if (!current.empty()) {
-                    tokens.push_back({ current, false, false, true });
+                    tokens.push_back(createToken(current));
                     current.clear();
                 }
                 tokens.push_back({ std::string(1, c), false, false, false });
@@ -77,20 +85,30 @@ namespace prsr {
             }
             else if (isOperator(c)) {
                 if (!current.empty()) {
-                    tokens.push_back({ current, false, false, true });
+                    tokens.push_back(createToken(current));
                     current.clear();
                 }
                 tokens.push_back({ std::string(1, c), true, false, false });
                 expectNegative = true;
             }
-            else if (c >= 'A' && c <= 'Z') {  
+            else if (c >= 'A' && c <= 'Z') {
+                if (!current.empty()) {
+                    tokens.push_back(createToken(current));
+                    current.clear();
+                }
+                current += c;
+                tokens.push_back(createToken(current));
+                current.clear();
+                expectNegative = false;
+            }
+            else if (std::isdigit(c) || c == '.') {  // Handle numbers
                 current += c;
                 expectNegative = false;
             }
         }
 
         if (!current.empty()) {
-            tokens.push_back({ current, false, false, true });
+            tokens.push_back(createToken(current));
         }
 
         return tokens;
@@ -98,4 +116,14 @@ namespace prsr {
 
     size_t findClosingParen(const std::vector<Token>& tokens, size_t start);
     std::vector<Token> processTokens(std::vector<Token> tokens);
+
+    std::string simplifyParentheses(const std::vector<Token>& tokens);
+    double evalSimpleExpr(const std::vector<Token>& tokens, bool& ok);
+
+    std::string flattenExpandMinus(Node* root);
+    Node* cloneSubtree(Node* node);
+    Node* applyDistributive(Node* node);
+    Node* applyAssociative(Node* node);
+    Node* factorize(Node* node);
+    void modelSystem(const std::string& expr, int procCount);
 }

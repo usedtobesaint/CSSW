@@ -6,4 +6,5 @@ namespace prsr {
     char expression[256] = "";
     std::string correctedExpression;
     std::string optimizedExpression;
+    std::string simplifiedExpression;
 }

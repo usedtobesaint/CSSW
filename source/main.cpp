@@ -9,27 +9,70 @@
 using namespace gui;
 
 // Function to recursively render the tree using ImGui
-void RenderTree(prsr::Node* node) {
+void RenderTree(prsr::Node* node, int depth = 0) {
     if (!node) return;
 
+    // Create a unique label for each node using its value and address
+    std::string label = node->value + "##" + std::to_string(reinterpret_cast<uintptr_t>(node));
+
     if (node->isOperator) {
-        // For operators, create a tree node with the operator value
-        if (ImGui::TreeNode(node, "%s", node->value.c_str())) {
-            // Recursively render children
+        if (ImGui::TreeNode(label.c_str(), "%s", node->value.c_str())) {
             for (auto child : node->children) {
-                RenderTree(child);
+                RenderTree(child, depth + 1);
             }
             ImGui::TreePop();
         }
-    }
-    else {
-        // For leaf nodes (variables or numbers), display as a non-expandable item
+    } else {
         ImGui::BulletText("%s", node->value.c_str());
     }
 }
 
+void PrintTree(prsr::Node* node, int depth = 0) {
+    if (!node) return;
+    for (int i = 0; i < depth; ++i) std::cout << "  ";
+    std::cout << node->value << (node->isOperator ? " (op)" : "") << std::endl;
+    for (auto child : node->children) {
+        PrintTree(child, depth + 1);
+    }
+}
+
 bool showShapesWindow = false;
+
 prsr::Node* treeRoot = nullptr; // To store the parse tree root
+
+void ImGuiPrintTree(prsr::Node* node, int depth = 0) {
+    if (!node) return;
+    ImGui::Indent(depth * 20.0f); // Indent for visual hierarchy
+    if (node->isOperator) {
+        ImGui::Text("%s (op)", node->value.c_str());
+    } else {
+        ImGui::Text("%s", node->value.c_str());
+    }
+    for (auto child : node->children) {
+        ImGuiPrintTree(child, depth + 1);
+    }
+    ImGui::Unindent(depth * 20.0f);
+}
+
+std::string FullySimplifyAndCorrect(std::string expr) {
+    std::string prev;
+    int maxIterations = 40;
+    int iter = 0;
+    do {
+        prev = expr;
+        // 1. Simplify
+        expr = prsr::simplifyExpression(expr);
+        // 2. Check for errors
+        prsr::errors.clear();
+        prsr::checkExpression(expr.c_str());
+        // 3. If errors, correct
+        if (!prsr::errors.empty()) {
+            expr = prsr::correctExpression(&expr[0], prsr::errors);
+        }
+        iter++;
+    } while ((expr != prev || !prsr::errors.empty()) && iter < maxIterations);
+    return expr;
+}
 
 int main(int argc, char* argv[])
 {
@@ -51,7 +94,7 @@ int main(int argc, char* argv[])
     {
         gui::BeginRender(parserContext);
         ImGui::SetNextWindowPos({ 0, 0 });
-        ImGui::SetNextWindowSize({ 800, 500 });
+        ImGui::SetNextWindowSize({ 1000, 1100 });
         ImGui::Begin(
             "Parser",
             &isRunning,
@@ -61,24 +104,25 @@ int main(int argc, char* argv[])
         ImGui::InputText("Write your expression here", prsr::expression, IM_ARRAYSIZE(prsr::expression),
             ImGuiInputTextFlags_CharsUppercase |
             ImGuiInputTextFlags_CharsNoBlank);
-        if (ImGui::Button("Check")) {
+        if (ImGui::Button("Auto-correct & Simplify")) {
+            std::string input = prsr::expression;
+            std::string result = FullySimplifyAndCorrect(input);
+            prsr::simplifiedExpression = result;
             prsr::errors.clear();
-            prsr::checkExpression(prsr::expression);
+            prsr::checkExpression(result.c_str());
         }
+        if (ImGui::Button("Model system")) {
+            prsr::modelSystem(prsr::simplifiedExpression, 6);
+        }
+        ImGui::Text("Final expression: %s", prsr::simplifiedExpression.c_str());
         prsr::displayErrors(prsr::errors);
-
-        if (ImGui::Button("Correct")) {
-            prsr::correctedExpression = prsr::correctExpression(prsr::expression, prsr::errors);
-        }
-
-        ImGui::Text("Corrected expression: %s", prsr::correctedExpression.c_str());
 
         ImGui::Checkbox("Optimize expression", &showShapesWindow);
 
         // If the checkbox is checked, show the shapes window
         if (showShapesWindow) {
             // Optimize the expression
-            prsr::optimizedExpression = prsr::optimizeExpression(prsr::correctedExpression);
+            prsr::optimizedExpression = prsr::optimizeExpression(prsr::simplifiedExpression);
 
             // Clean up the previous tree if it exists
             if (treeRoot) {
@@ -89,23 +133,18 @@ int main(int argc, char* argv[])
             // Build and optimize the parse tree
             treeRoot = prsr::buildParseTree(prsr::optimizedExpression);
             treeRoot = prsr::optimizeParallelTree(treeRoot);
-
-            // Display the tree as a string for reference
-            std::string treeString = prsr::treeToString(treeRoot);
-            ImGui::Text("Tree as string: %s", treeString.c_str());
+            
 
             // Display the tree structure using ImGui
             ImGui::Separator();
             ImGui::Text("Parse Tree:");
             if (treeRoot) {
-                RenderTree(treeRoot);
+                ImGuiPrintTree(treeRoot);
             }
             else {
                 ImGui::Text("No tree to display.");
             }
         }
-
-        ImGui::Text("Optimized expression: %s", prsr::optimizedExpression.c_str());
 
         ImGui::End();
 

@@ -75,8 +75,23 @@ std::vector<std::string> prsr::checkExpression(const char* expr) {
     auto tokens = tokenize(expr);
     for (size_t i = 0; i < tokens.size(); ++i) {
         if (tokens[i].value == "/" && i + 1 < tokens.size()) {
-            if (tokens[i + 1].isNumber && tokens[i + 1].value == "0") {
-                prsr::errors.push_back("Position " + std::to_string(i + 1) + ": division by zero detected");
+            // Check for direct numeric zero
+            if (tokens[i + 1].isNumber) {
+                try {
+                    double val = std::stod(tokens[i + 1].value);
+                    if (val == 0.0) {
+                        prsr::errors.push_back("Position " + std::to_string(i + 1) + ": division by zero detected");
+                    }
+                } catch (...) {}
+            }
+            // Optionally: check for parenthesized zero (e.g., /(0))
+            else if (tokens[i + 1].value == "(" && i + 2 < tokens.size() && tokens[i + 2].isNumber) {
+                try {
+                    double val = std::stod(tokens[i + 2].value);
+                    if (val == 0.0) {
+                        prsr::errors.push_back("Position " + std::to_string(i + 2) + ": division by zero detected (in parentheses)");
+                    }
+                } catch (...) {}
             }
         }
     }
@@ -132,7 +147,98 @@ std::vector<std::string> prsr::checkExpression(const char* expr) {
             continue;
         }
 
-        if (current == '+' || current == '-' || current == '*' || current == '/') {
+        if (current == '-') {
+            if (i == 0 || expr[i-1] == '(' || isOperator(expr[i-1])) {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (i > 0 && expr[i-1] == '-' && (i == 1 || isOperator(expr[i-2]) || expr[i-2] == '(')) {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (i > 0 && expr[i-1] == '-') {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": consecutive negative signs '--' are not allowed");
+                continue;
+            }
+        }
+
+        if (current == '+') {
+            if (i == 0 && current == '-') {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (current == '-' && lastWasNegativeSign) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": consecutive negative signs '--' are not allowed");
+                continue;
+            }
+            if (lastWasOpeningParenthesis && current != '-') {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": invalid operator '" + std::string(1, current) + "' directly after opening parenthesis");
+                continue;
+            }
+            if (current == '-' && lastWasOpeningParenthesis) {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (lastWasOperator && !(current == '-' && lastWasOpeningParenthesis)) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": operator '" + std::string(1, current) + "' after another operator");
+            }
+            if (!lastWasOperand && !lastWasNegativeSign && !lastWasOpeningParenthesis) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": operator '" + std::string(1, current) + "' without preceding operand");
+            }
+            lastWasOperator = true;
+            lastWasOperand = false;
+            lastWasDecimal = false;
+            inNumber = false;
+            lastWasOpeningParenthesis = false;
+            lastWasNegativeSign = (current == '-');
+            continue;
+        }
+
+        if (current == '*') {
+            if (i == 0 && current == '-') {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (current == '-' && lastWasNegativeSign) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": consecutive negative signs '--' are not allowed");
+                continue;
+            }
+            if (lastWasOpeningParenthesis && current != '-') {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": invalid operator '" + std::string(1, current) + "' directly after opening parenthesis");
+                continue;
+            }
+            if (current == '-' && lastWasOpeningParenthesis) {
+                lastWasOperator = true;
+                lastWasOperand = false;
+                lastWasNegativeSign = true;
+                continue;
+            }
+            if (lastWasOperator && !(current == '-' && lastWasOpeningParenthesis)) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": operator '" + std::string(1, current) + "' after another operator");
+            }
+            if (!lastWasOperand && !lastWasNegativeSign && !lastWasOpeningParenthesis) {
+                prsr::errors.push_back("Position " + std::to_string(i) + ": operator '" + std::string(1, current) + "' without preceding operand");
+            }
+            lastWasOperator = true;
+            lastWasOperand = false;
+            lastWasDecimal = false;
+            inNumber = false;
+            lastWasOpeningParenthesis = false;
+            lastWasNegativeSign = (current == '-');
+            continue;
+        }
+
+        if (current == '/') {
             if (i == 0 && current == '-') {
                 lastWasOperator = true;
                 lastWasOperand = false;
@@ -297,15 +403,21 @@ std::string prsr::correctExpression(char* expr, const std::vector<std::string>& 
                             isModified = true;
                         }
                         else if (error.find("invalid variable name") != std::string::npos) {
-                            result += '0';
-                            while (i < currentExpr.length() && (std::isalpha(currentExpr[i]) || std::isdigit(currentExpr[i]))) {
+                            result += currentExpr[i];
+                            while (i + 1 < currentExpr.length() && (std::isalpha(currentExpr[i + 1]) || std::isdigit(currentExpr[i + 1]))) {
                                 ++i;
                             }
-                            --i;
                             isModified = true;
                         }
-                        else if (error.find("consecutive negative signs") != std::string::npos ||
-                            error.find("directly after opening parenthesis") != std::string::npos ||
+                        else if (error.find("consecutive negative signs") != std::string::npos) {
+                            if (i > 0 && currentExpr[i-1] == '-' && (i == 1 || isOperator(currentExpr[i-2]) || currentExpr[i-2] == '(')) {
+                                result += currentExpr[i];
+                                isModified = false;
+                            } else {
+                                isModified = true;
+                            }
+                        }
+                        else if (error.find("directly after opening parenthesis") != std::string::npos ||
                             error.find("after another operator") != std::string::npos ||
                             error.find("second decimal point in the number") != std::string::npos ||
                             error.find("extra closing parenthesis") != std::string::npos) {
@@ -323,10 +435,6 @@ std::string prsr::correctExpression(char* expr, const std::vector<std::string>& 
                         else if (error.find("end of expression after an operator") != std::string::npos) {
                             result += currentExpr[i];
                             result += '0';
-                            isModified = true;
-                        }
-                        else if (error.find("missing operator between number and variable/function") != std::string::npos) {
-                            result += '*';
                             isModified = true;
                         }
                     }
@@ -356,3 +464,6 @@ std::string prsr::correctExpression(char* expr, const std::vector<std::string>& 
     prsr::correctedExpression = currentExpr;
     return currentExpr;
 }
+
+
+

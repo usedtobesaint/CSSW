@@ -6,8 +6,8 @@
 namespace gui
 {
 	//window size
-	inline int WIDTH = 800;
-	inline int HEIGHT = 500;
+	inline int WIDTH = 1000;
+	inline int HEIGHT = 1100;
 
 	inline bool isRunning = true;
 

@@ -154,6 +154,7 @@
     <ClCompile Include="imgui\imgui_tables.cpp" />
     <ClCompile Include="imgui\imgui_widgets.cpp" />
     <ClCompile Include="source\globals.cpp" />
+    <ClCompile Include="source\modeling.cpp" />
     <ClCompile Include="source\optimizing.cpp" />
     <ClCompile Include="source\errors.cpp" />
     <ClCompile Include="source\gui.cpp" />
